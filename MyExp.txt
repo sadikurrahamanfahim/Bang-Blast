@@ -1,0 +1,92 @@
+--BÀI HỌC & KINH NGHIỆM TỪ GAME--
+
+1. Game BlockBlast sử dụng UI Canvas (đơn giản, dễ dùng với game) thay vì dùng Sprite Renderer.
+	Set camera trong canvas -> hợp nhất góc nhìn (gán Main Camera vào Render Camera của Canvas).
+
+2. Set Background full phù hợp với nhiều tỉ lệ: Rect Transform set stretch X stretch (alt+shift+..).
+
+3. Sử dụng Sprite Editor để cắt những thành phần Image không nền.
+
+4. Set hình GameBoard tương tự Background (tự tùy chỉnh Rect Transform phù hợp). 
+	Tạo script C# GridManager -> quản lý grid GameBoard(Tạo Background cho GameBoard + tạo grid).
+		Dùng code để tạo Grid 8x8 (hiển thị các đường kẻ, viền grid, test color các ô).
+
+5. Viết logic kiểm tra hàng/cột đầy và tính điểm
+	Đánh dấu cell đã chiếm
+	Kiểm tra hàng/cột đầy
+	Xóa hàng/cột đầy & Cộng điểm.
+	*Kéo thả block vào grid:
+		BlockPrefab: mỗi block là một prefab chứa mini-cell sắp xếp theo hình dạng.
+		Drag & Drop: khi người chơi kéo block, nó đi theo chuột.
+		Thả block: khi nhả chuột, tính toạ độ grid gần nhất.
+			Nếu block fit vào grid (không tràn, không đè cell đã chiếm) → đặt block vào grid.
+			Nếu không hợp lệ → block quay về vị trí cũ.
+		Cập nhật logic.
+
+6. Định nghĩa hình dạng Block
+	Tạo BlockDefinition C# để kiểm soát logic
+	Tạo prefab block trong Unity
+
+7. Tạo file BlockDrag để quản lý hành động kéo thả vào Grid
+	Khi người chơi bắt đầu kéo (OnBeginDrag): lưu lại vị trí ban đầu, đổi parent nếu cần để block hiển thị đúng.
+	Khi đang kéo (OnDrag): cập nhật vị trí block theo chuột để block đi theo con trỏ.
+		Bug khi di chuyển chuột sẽ làm mất hình block:
+			Dùng RectTransformUtility để chuyển đổi toạ độ chuột sang local position trong Canvas.
+	Khi thả ra (OnEndDrag): xác định vị trí thả, kiểm tra xem block có đặt hợp lệ không. (Nếu không đúng thì trả block về vị trí ban đầu)
+
+8. Tạo BlockSpawner để tự động sinh ra block mới
+	Luôn có 3 block xuất hiện ở “khay” phía dưới màn hình.
+	Khi người chơi đặt 1 block vào grid → khay sẽ tự động sinh ra 1 block mới luôn.
+	Mỗi block là một prefab (có gắn script BlockDrag).
+	BlockSpawner sẽ chịu trách nhiệm:
+		Tạo 3 slot trong khay
+		Sinh block ngẫu nhiên từ danh sách prefab.
+		Gán tham chiếu GridManager và GridLogic cho từng block.
+		Khi block được đặt thành công → báo lại cho spawner.
+
+9. Kiểm tra và fix bug
+	* Bug: BlockSpawner sinh ra tất cả các block cùng lúc. (thường chỉ cần 3 block)
+	& Bug: "Trying to remove CellPrefab(Clone) ..." xuất hiện khi bạn bật/tắt (SetActive) hoặc Destroy các CellPrefab đúng lúc Unity đang chạy vòng lặp layout/rebuild (UI UGUI).
+		-> Dùng pooling và StartCoroutine để Trì hoãn việc Clear/Render sang frame sau. (áp dụng cho cả BlockDrag & BlockSpawner để tránh lỗi).
+	* Bug: Các block Render ra nhưng không hiển thị UI Image.
+		-> Dùng Sprite Image, bỏ các Cells con trong Block Prefab, thay đổi BlockRenderer để Render ra Sprite Image UI.
+	* Bug: Grid co dãn theo tỉ lệ màn hình -> mất độ vuông của ô
+		-> Dùng cùng một cellSize cho cả Width và Height.
+	* Bug: BlocksTray không thay đổi theo tỉ lệ & không bám sát vào phía dưới GameBoard.
+		-> Trong GridManager ta tính khoảng cách từ mép dưới Canvas → mép dưới BoardGame. Sau đó ResizeTray lại phần BlocksTray theo khoảng cách đó.
+	* Bug: Blocks bị disable khi mà click/drag (sau 3-4 lần thì bị đơ)
+		-> Trong hàm BlockDrag.PlaceBlock() bỏ enabled = false chỉ set SetActive(true). Trong BlockSpawner.SpawnOneAtSlot(), ta SetAsLastSibling.
+
+10. Xoay Block (0, 90, 180, 270 độ) - cả logic và hiển thị.
+	Xoay dữ liệu shapeCells trước khi render
+	BlockRenderer (để render theo rotation)
+	BlockDrag (để lưu rotation và dùng khi PlaceBlock)
+	BlockSpawner (để random rotation khi spawn)
+
+	* Bug: 1 số block sau khi xoay sẽ bị resize khác đi (cụ thể là bị co nhỏ hơn)
+		-> Xoay bằng RectTransform.localRotation để hiển thị đúng hướng.
+		-> Tắt preserveAspect để sprite fill đúng sizeDelta.
+		-> Không dùng GetWidth/GetHeight(rotationSteps) nữa, chỉ lấy kích thước gốc. Không cần tính lại width/height sau xoay
+ 
+11. Đổi cách render sprites blocks từ nguyên khối -> các ô ghép lại.
+	Definition lại Blocks từ sprite nguyên khối -> các ô ghép lại.
+	Chỉnh sửa để Sprite Image UI của Blocks khớp và Color hợp lý.
+
+12. Các Blocks khi snap vào Grid thì bị nhận ô (0,0) làm gốc để snap -> ảnh hưởng trải nghiệm UI
+	Fix lỗi nhận cell (0,0) làm gốc -> Nhận theo trỏ chuột
+	Tính toán lại cellPos để blocks snap chính xác vào grid.
+
+13. Làm Panel Score và HighScore
+	Tạo Panel chứa Text UI hiển thị Score và HighScore
+	Chỉnh sửa lại logic tính score & dùng PlayerPrefs để lưu HighScore
+	Update Score và HighScore nếu có thay đổi.
+
+14. Tạo Popup GameOver cho game
+	Logic: Nếu không thể ghép Block nào ở trong Tray vào Grid nữa thì GameOver, Bấm Button để chơi lại.
+	Hiển thị cả Score mà người chơi đạt được.
+
+15. Thêm Nhạc nền cho Game
+	Nhạc nền sẽ phát khi đang chơi, dừng lại khi GameOver và phát lại từ đầu khi bấm chơi lại.
+
+16. Thêm logic hiển thị UI Text Combo 
+	Add thêm hiệu ứng khi xóa 1 hàng/cột liên tiếp thì hiển thị Combo xN!
